@@ -8,7 +8,6 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
-// ========== CONFIG ==========
 const IS_MOBILE = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -26,7 +25,7 @@ document.getElementById('age-no').addEventListener('click', () => {
   window.location.href = 'https://www.google.com';
 });
 
-// ========== VARIETIES DATA ==========
+// ========== VARIETIES ==========
 const VARIETIES = [
   { num: '0', name: 'Безалкогольное', abv: '0,0%' },
   { num: '3', name: 'Классическое', abv: '4,8%' },
@@ -55,215 +54,210 @@ function populateVarieties() {
   });
 }
 
-// ========== MAIN EXPERIENCE ==========
+// ========== MAIN ==========
 function initExperience() {
   populateVarieties();
 
   const container = document.getElementById('canvas-container');
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x03080F);
-  scene.fog = new THREE.FogExp2(0x03080F, 0.018);
+  scene.background = new THREE.Color(0x02060C);
+  scene.fog = new THREE.FogExp2(0x02060C, 0.012);
 
-  const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 1.2, 4.5);
+  const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 120);
+  camera.position.set(0, 1.4, 5.2);
 
   const renderer = new THREE.WebGLRenderer({
     antialias: !IS_MOBILE,
-    alpha: false,
     powerPreference: 'high-performance',
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 1.5 : 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 1.4 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.15;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
+  // Environment
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const env = pmrem.fromScene(new RoomEnvironment(), 0.03).texture;
   scene.environment = env;
-  scene.environmentIntensity = 0.85;
+  scene.environmentIntensity = 1.1;
 
-  const keyLight = new THREE.DirectionalLight(0xB8D4E8, 1.8);
-  keyLight.position.set(3, 6, 4);
-  scene.add(keyLight);
+  // Lights — colder & more dramatic
+  const key = new THREE.DirectionalLight(0xC8E0F8, 2.4);
+  key.position.set(4, 8, 5);
+  scene.add(key);
 
-  const fillLight = new THREE.DirectionalLight(0x1E4A8C, 0.6);
-  fillLight.position.set(-4, 2, -2);
-  scene.add(fillLight);
+  const fill = new THREE.DirectionalLight(0x1A3A6E, 0.9);
+  fill.position.set(-5, 2, -3);
+  scene.add(fill);
 
-  const rimLight = new THREE.DirectionalLight(0xE8C547, 0.45);
-  rimLight.position.set(-2, 3, -5);
-  scene.add(rimLight);
+  const rim = new THREE.DirectionalLight(0xE8C547, 0.55);
+  rim.position.set(-3, 4, -6);
+  scene.add(rim);
 
-  const ambient = new THREE.AmbientLight(0x0A1F3D, 0.35);
-  scene.add(ambient);
+  const bottom = new THREE.DirectionalLight(0x4A7AB0, 0.4);
+  bottom.position.set(0, -4, 2);
+  scene.add(bottom);
 
+  scene.add(new THREE.AmbientLight(0x0A1525, 0.25));
+
+  // --- Objects ---
   const canGroup = createCan();
   scene.add(canGroup);
 
-  const ramp = createRamp();
-  scene.add(ramp);
+  const iceShards = createIceShards(IS_MOBILE ? 28 : 55);
+  scene.add(iceShards);
 
-  const particles = createParticles();
+  const particles = createParticles(IS_MOBILE ? 180 : 420);
   scene.add(particles);
 
+  // Subtle ground reflection plane
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x050A12,
+      metalness: 0.8,
+      roughness: 0.25,
+      envMapIntensity: 0.6,
+    })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -1.6;
+  scene.add(ground);
+
+  // Post
   let composer = null;
   if (!IS_MOBILE && !REDUCED_MOTION) {
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.25, 0.4, 0.85
+      0.35, 0.5, 0.82
     );
     composer.addPass(bloom);
   }
 
+  // --- Cinematic path (more dramatic arc) ---
   const pathPoints = [
-    new THREE.Vector3(0, 2.8, 2.2),
-    new THREE.Vector3(0.6, 2.1, 1.4),
-    new THREE.Vector3(1.1, 1.3, 0.5),
-    new THREE.Vector3(0.8, 0.5, -0.4),
-    new THREE.Vector3(0.2, -0.1, -1.2),
-    new THREE.Vector3(-0.4, -0.4, -2.0),
+    new THREE.Vector3(0.0, 2.6, 2.8),
+    new THREE.Vector3(1.1, 2.0, 1.6),
+    new THREE.Vector3(1.6, 1.1, 0.3),
+    new THREE.Vector3(0.9, 0.35, -0.9),
+    new THREE.Vector3(-0.2, -0.15, -1.8),
+    new THREE.Vector3(-0.9, -0.35, -2.6),
   ];
   const path = new THREE.CatmullRomCurve3(pathPoints);
   path.curveType = 'catmullrom';
-  path.tension = 0.35;
+  path.tension = 0.28;
 
   const getPathData = (t) => {
-    const pos = path.getPointAt(THREE.MathUtils.clamp(t, 0, 1));
-    const tangent = path.getTangentAt(THREE.MathUtils.clamp(t, 0, 1)).normalize();
-    return { pos, tangent };
+    const clamped = THREE.MathUtils.clamp(t, 0, 1);
+    return {
+      pos: path.getPointAt(clamped),
+      tangent: path.getTangentAt(clamped).normalize(),
+    };
   };
 
+  // Scroll progress
   let scrollProgress = 0;
-
   ScrollTrigger.create({
     trigger: '#scroll-content',
     start: 'top top',
     end: 'bottom bottom',
-    scrub: 0.8,
+    scrub: 0.65,
     onUpdate: (self) => {
       scrollProgress = self.progress;
-      document.getElementById('progress-fill').style.width = `${self.progress * 100}%`;
-      if (self.progress > 0.04) {
-        document.getElementById('scroll-hint').classList.add('hidden');
+      const fillEl = document.getElementById('progress-fill');
+      if (fillEl) fillEl.style.width = `${self.progress * 100}%`;
+      if (self.progress > 0.035) {
+        document.getElementById('scroll-hint')?.classList.add('hidden');
       }
     },
   });
 
-  gsap.to('.hero-title', {
-    opacity: 1,
-    y: 0,
-    duration: 1.4,
-    ease: 'power3.out',
-    delay: 0.3,
-  });
-  gsap.to('.hero-subtitle', {
-    opacity: 1,
-    y: 0,
-    duration: 1.2,
-    ease: 'power3.out',
-    delay: 0.6,
-  });
+  // Text reveals
+  gsap.to('.hero-title', { opacity: 1, y: 0, duration: 1.5, ease: 'power3.out', delay: 0.25 });
+  gsap.to('.hero-subtitle', { opacity: 1, y: 0, duration: 1.3, ease: 'power3.out', delay: 0.55 });
 
   gsap.utils.toArray('.section-title, .section-lead').forEach((el) => {
     gsap.to(el, {
-      opacity: 1,
-      y: 0,
-      duration: 1,
-      ease: 'power2.out',
-      scrollTrigger: {
-        trigger: el,
-        start: 'top 85%',
-        toggleActions: 'play none none reverse',
-      },
+      opacity: 1, y: 0, duration: 1.05, ease: 'power2.out',
+      scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none reverse' },
     });
   });
 
   gsap.utils.toArray('.timeline-item').forEach((el, i) => {
     gsap.to(el, {
-      opacity: 1,
-      x: 0,
-      duration: 0.8,
-      delay: i * 0.1,
-      ease: 'power2.out',
-      scrollTrigger: {
-        trigger: el,
-        start: 'top 90%',
-        toggleActions: 'play none none reverse',
-      },
+      opacity: 1, x: 0, duration: 0.85, delay: i * 0.09, ease: 'power2.out',
+      scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' },
     });
   });
 
   gsap.utils.toArray('.process-step').forEach((el, i) => {
     gsap.to(el, {
-      opacity: 1,
-      y: 0,
-      duration: 0.7,
-      delay: i * 0.08,
-      ease: 'power2.out',
-      scrollTrigger: {
-        trigger: el,
-        start: 'top 90%',
-        toggleActions: 'play none none reverse',
-      },
+      opacity: 1, y: 0, duration: 0.75, delay: i * 0.07, ease: 'power2.out',
+      scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' },
     });
   });
 
   gsap.to('.responsible-text', {
-    opacity: 1,
-    y: 0,
-    duration: 1,
-    ease: 'power2.out',
-    scrollTrigger: {
-      trigger: '.responsible-text',
-      start: 'top 85%',
-      toggleActions: 'play none none reverse',
-    },
+    opacity: 1, y: 0, duration: 1.1, ease: 'power2.out',
+    scrollTrigger: { trigger: '.responsible-text', start: 'top 85%', toggleActions: 'play none none reverse' },
   });
 
+  // Animation loop
   const clock = new THREE.Clock();
   let lastProgress = 0;
 
   function animate() {
     requestAnimationFrame(animate);
-    const dt = clock.getDelta();
+    const dt = Math.min(clock.getDelta(), 0.05);
     const t = scrollProgress;
-
-    const smoothT = THREE.MathUtils.lerp(lastProgress, t, 0.12);
+    const smoothT = THREE.MathUtils.lerp(lastProgress, t, 0.11);
     lastProgress = smoothT;
 
+    // Can on path
     const { pos, tangent } = getPathData(smoothT);
     canGroup.position.copy(pos);
 
-    const lookTarget = pos.clone().add(tangent);
-    canGroup.lookAt(lookTarget);
+    // Orient + continuous spin
+    const look = pos.clone().add(tangent);
+    canGroup.lookAt(look);
     canGroup.rotateX(Math.PI / 2);
-    canGroup.rotation.y += 0.008 + smoothT * 0.015;
+    canGroup.rotation.y += 0.012 + smoothT * 0.02;
 
+    // Camera — more cinematic offset that orbits slightly
+    const orbit = smoothT * Math.PI * 1.2;
     const camOffset = new THREE.Vector3(
-      Math.sin(smoothT * Math.PI) * 1.8,
-      1.4 - smoothT * 0.6,
-      3.2 - smoothT * 1.5
+      Math.sin(orbit) * 2.1,
+      1.55 - smoothT * 0.75,
+      3.6 - smoothT * 1.8
     );
-    const desiredCamPos = pos.clone().add(camOffset);
-    camera.position.lerp(desiredCamPos, 0.08);
-    camera.lookAt(pos.clone().add(new THREE.Vector3(0, 0.15, 0)));
+    const desiredCam = pos.clone().add(camOffset);
+    camera.position.lerp(desiredCam, 0.07);
+    camera.lookAt(pos.clone().add(new THREE.Vector3(0, 0.2, 0)));
 
-    particles.rotation.y += dt * 0.02;
-    particles.position.y = Math.sin(clock.elapsedTime * 0.3) * 0.1;
+    // Ice shards — slow orbit + individual tumble
+    iceShards.children.forEach((shard, i) => {
+      shard.rotation.x += dt * (0.15 + (i % 5) * 0.04);
+      shard.rotation.y += dt * (0.12 + (i % 7) * 0.03);
+      // subtle float
+      const base = shard.userData.baseY || 0;
+      shard.position.y = base + Math.sin(clock.elapsedTime * 0.6 + i) * 0.08;
+    });
+    iceShards.rotation.y += dt * 0.035;
 
-    if (ramp.material) {
-      ramp.material.opacity = THREE.MathUtils.clamp(1 - smoothT * 1.4, 0.15, 0.55);
+    // Particles
+    particles.rotation.y += dt * 0.018;
+    const positions = particles.geometry.attributes.position.array;
+    for (let i = 1; i < positions.length; i += 3) {
+      positions[i] += Math.sin(clock.elapsedTime * 0.4 + i) * 0.0008;
     }
+    particles.geometry.attributes.position.needsUpdate = true;
 
-    if (composer) {
-      composer.render();
-    } else {
-      renderer.render(scene, camera);
-    }
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
   }
   animate();
 
@@ -271,171 +265,183 @@ function initExperience() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    if (composer) {
-      composer.setSize(window.innerWidth, window.innerHeight);
-    }
+    if (composer) composer.setSize(window.innerWidth, window.innerHeight);
   });
 }
 
+// ========== CAN ==========
 function createCan() {
   const group = new THREE.Group();
 
-  const bodyGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.55, 64, 1, true);
+  // Body
+  const bodyGeo = new THREE.CylinderGeometry(0.44, 0.44, 1.62, 72, 1, true);
   const bodyMat = new THREE.MeshPhysicalMaterial({
-    color: 0x1A3A6E,
-    metalness: 0.92,
-    roughness: 0.18,
-    clearcoat: 0.7,
-    clearcoatRoughness: 0.15,
-    envMapIntensity: 1.4,
+    color: 0x152E55,
+    metalness: 0.94,
+    roughness: 0.14,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.1,
+    envMapIntensity: 1.6,
     side: THREE.DoubleSide,
   });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  group.add(body);
+  group.add(new THREE.Mesh(bodyGeo, bodyMat));
 
-  const labelCanvas = document.createElement('canvas');
-  labelCanvas.width = 1024;
-  labelCanvas.height = 512;
-  const ctx = labelCanvas.getContext('2d');
+  // Label
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
 
   const grad = ctx.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, '#0F2A55');
-  grad.addColorStop(0.5, '#1E4A8C');
-  grad.addColorStop(1, '#0A1F3D');
+  grad.addColorStop(0, '#0C2448');
+  grad.addColorStop(0.45, '#1A457F');
+  grad.addColorStop(1, '#081C38');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 1024, 512);
 
+  // Gold lines
   ctx.fillStyle = '#C9A227';
-  ctx.fillRect(0, 40, 1024, 8);
-  ctx.fillRect(0, 464, 1024, 8);
+  ctx.fillRect(0, 36, 1024, 7);
+  ctx.fillRect(0, 470, 1024, 7);
 
   ctx.fillStyle = '#F5F9FC';
-  ctx.font = 'bold 92px "Playfair Display", Georgia, serif';
+  ctx.font = 'bold 96px "Playfair Display", Georgia, serif';
   ctx.textAlign = 'center';
-  ctx.fillText('БАЛТИКА', 512, 230);
+  ctx.fillText('БАЛТИКА', 512, 225);
 
   ctx.fillStyle = '#E8C547';
-  ctx.font = 'bold 140px "Playfair Display", Georgia, serif';
-  ctx.fillText('3', 512, 370);
+  ctx.font = 'bold 148px "Playfair Display", Georgia, serif';
+  ctx.fillText('3', 512, 375);
 
-  ctx.fillStyle = 'rgba(184, 212, 232, 0.85)';
-  ctx.font = '28px Inter, sans-serif';
-  ctx.fillText('КЛАССИЧЕСКОЕ', 512, 420);
+  ctx.fillStyle = 'rgba(200, 220, 240, 0.9)';
+  ctx.font = '26px Inter, sans-serif';
+  ctx.fillText('КЛАССИЧЕСКОЕ', 512, 430);
 
-  const labelTex = new THREE.CanvasTexture(labelCanvas);
+  const labelTex = new THREE.CanvasTexture(canvas);
   labelTex.colorSpace = THREE.SRGBColorSpace;
-  labelTex.anisotropy = 8;
+  labelTex.anisotropy = 16;
 
-  const labelGeo = new THREE.CylinderGeometry(0.422, 0.422, 1.1, 64, 1, true);
-  const labelMat = new THREE.MeshPhysicalMaterial({
-    map: labelTex,
-    metalness: 0.3,
-    roughness: 0.4,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.2,
-  });
-  const label = new THREE.Mesh(labelGeo, labelMat);
-  label.position.y = 0.05;
+  const label = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.443, 0.443, 1.15, 72, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      map: labelTex,
+      metalness: 0.25,
+      roughness: 0.35,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+    })
+  );
+  label.position.y = 0.04;
   group.add(label);
 
-  const topGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.06, 64);
-  const topMat = new THREE.MeshPhysicalMaterial({
-    color: 0xC0C8D0,
-    metalness: 0.95,
-    roughness: 0.12,
-    clearcoat: 0.8,
+  // Top & bottom lids
+  const lidMat = new THREE.MeshPhysicalMaterial({
+    color: 0xC8D0D8,
+    metalness: 0.97,
+    roughness: 0.1,
+    clearcoat: 0.9,
   });
-  const top = new THREE.Mesh(topGeo, topMat);
-  top.position.y = 0.805;
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.055, 64), lidMat);
+  top.position.y = 0.84;
   group.add(top);
 
-  const bottom = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.41, 0.41, 0.05, 64),
-    topMat
-  );
-  bottom.position.y = -0.8;
+  const bottom = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.045, 64), lidMat);
+  bottom.position.y = -0.835;
   group.add(bottom);
 
-  const dropGeo = new THREE.SphereGeometry(0.012, 8, 8);
+  // Condensation droplets
+  const dropGeo = new THREE.SphereGeometry(0.011, 8, 8);
   const dropMat = new THREE.MeshPhysicalMaterial({
-    color: 0xD0E8F8,
-    metalness: 0.1,
-    roughness: 0.05,
-    transmission: 0.6,
-    thickness: 0.5,
+    color: 0xD8ECF8,
+    metalness: 0.05,
+    roughness: 0.04,
+    transmission: 0.7,
+    thickness: 0.4,
     transparent: true,
-    opacity: 0.7,
+    opacity: 0.75,
   });
-
-  const drops = new THREE.InstancedMesh(dropGeo, dropMat, 40);
+  const drops = new THREE.InstancedMesh(dropGeo, dropMat, 55);
   const dummy = new THREE.Object3D();
-  for (let i = 0; i < 40; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const y = (Math.random() - 0.5) * 1.3;
-    const r = 0.425 + Math.random() * 0.01;
-    dummy.position.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
-    dummy.scale.setScalar(0.6 + Math.random() * 0.8);
+  for (let i = 0; i < 55; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const y = (Math.random() - 0.5) * 1.35;
+    const r = 0.445 + Math.random() * 0.012;
+    dummy.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    dummy.scale.setScalar(0.55 + Math.random() * 1.1);
     dummy.updateMatrix();
     drops.setMatrixAt(i, dummy.matrix);
   }
   drops.instanceMatrix.needsUpdate = true;
   group.add(drops);
 
-  group.rotation.y = Math.PI * 0.15;
+  group.rotation.y = 0.3;
+  return group;
+}
+
+// ========== ICE SHARDS (the key upgrade) ==========
+function createIceShards(count) {
+  const group = new THREE.Group();
+
+  // Simple low-poly ice crystal geometries
+  const geos = [
+    new THREE.IcosahedronGeometry(0.18, 0),
+    new THREE.OctahedronGeometry(0.16, 0),
+    new THREE.TetrahedronGeometry(0.2, 0),
+    new THREE.BoxGeometry(0.22, 0.14, 0.18),
+  ];
+
+  const iceMat = new THREE.MeshPhysicalMaterial({
+    color: 0xB8D8F0,
+    metalness: 0.05,
+    roughness: 0.08,
+    transmission: 0.82,
+    thickness: 1.4,
+    ior: 1.31,
+    transparent: true,
+    opacity: 0.78,
+    envMapIntensity: 1.8,
+    side: THREE.DoubleSide,
+  });
+
+  for (let i = 0; i < count; i++) {
+    const geo = geos[i % geos.length].clone();
+    const mesh = new THREE.Mesh(geo, iceMat.clone());
+    const s = 0.5 + Math.random() * 1.4;
+    mesh.scale.set(s * (0.7 + Math.random() * 0.6), s, s * (0.7 + Math.random() * 0.6));
+
+    // place in a loose sphere around the path
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.4 + Math.random() * 2.8;
+    mesh.position.set(
+      r * Math.sin(phi) * Math.cos(theta),
+      (Math.random() - 0.35) * 3.2,
+      r * Math.sin(phi) * Math.sin(theta) - 0.5
+    );
+    mesh.userData.baseY = mesh.position.y;
+    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    group.add(mesh);
+  }
 
   return group;
 }
 
-function createRamp() {
-  const geo = new THREE.PlaneGeometry(6, 8, 32, 32);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    pos.setZ(i, Math.sin(x * 0.8) * 0.08 + Math.cos(y * 0.5) * 0.06);
-  }
-  geo.computeVertexNormals();
-
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: 0xA8C8E0,
-    metalness: 0.1,
-    roughness: 0.15,
-    transmission: 0.55,
-    thickness: 1.2,
-    transparent: true,
-    opacity: 0.45,
-    side: THREE.DoubleSide,
-    envMapIntensity: 1.2,
-  });
-
-  const ramp = new THREE.Mesh(geo, mat);
-  ramp.rotation.x = -Math.PI / 2.6;
-  ramp.rotation.z = -0.15;
-  ramp.position.set(0.3, 0.6, 0.2);
-  return ramp;
-}
-
-function createParticles() {
-  const count = IS_MOBILE ? 120 : 280;
+// ========== PARTICLES ==========
+function createParticles(count) {
   const geo = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
-  const sizes = new Float32Array(count);
-
+  const pos = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 8;
-    positions[i * 3 + 1] = (Math.random() - 0.5) * 6;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 8;
-    sizes[i] = Math.random() * 0.04 + 0.01;
+    pos[i * 3] = (Math.random() - 0.5) * 12;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * 8;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 12;
   }
-
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
 
   const mat = new THREE.PointsMaterial({
-    color: 0xC8E0F0,
-    size: 0.035,
+    color: 0xC0DCF0,
+    size: 0.028,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.55,
     sizeAttenuation: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
