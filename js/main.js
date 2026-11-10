@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -25,7 +26,7 @@ document.getElementById('age-no').addEventListener('click', () => {
 });
 
 const VARIETIES = [
-  { num: '0', name: 'Безалкогольное', abv: '0,0%' },
+  { num: '0', name: 'Грейпфрут', abv: '0,0%' },
   { num: '3', name: 'Классическое', abv: '4,8%' },
   { num: '7', name: 'Экспортное', abv: '5,4%' },
   { num: '9', name: 'Крепкое', abv: '8,0%' },
@@ -44,76 +45,116 @@ function populateVarieties() {
       document.querySelectorAll('.variety-card').forEach(c => c.classList.remove('active'));
       card.classList.add('active');
     });
-    if (i === 1) card.classList.add('active');
+    if (i === 0) card.classList.add('active');
     grid.appendChild(card);
   });
 }
 
-function initExperience() {
+async function initExperience() {
   populateVarieties();
 
   const container = document.getElementById('canvas-container');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x02060C);
-  scene.fog = new THREE.FogExp2(0x02060C, 0.012);
+  scene.fog = new THREE.FogExp2(0x02060C, 0.011);
 
-  const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 120);
-  camera.position.set(0, 1.4, 5.2);
+  const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 1.1, 4.6);
 
   const renderer = new THREE.WebGLRenderer({
     antialias: !IS_MOBILE,
     powerPreference: 'high-performance',
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 1.4 : 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 1.5 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.18;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const env = pmrem.fromScene(new RoomEnvironment(), 0.03).texture;
+  const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = env;
-  scene.environmentIntensity = 1.1;
+  scene.environmentIntensity = 1.35;
 
-  const key = new THREE.DirectionalLight(0xC8E0F8, 2.4);
-  key.position.set(4, 8, 5);
+  const key = new THREE.DirectionalLight(0xE0F0FF, 2.8);
+  key.position.set(3.2, 7, 4.5);
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0x1A3A6E, 0.9);
-  fill.position.set(-5, 2, -3);
+  const fill = new THREE.DirectionalLight(0x1E3A6A, 0.85);
+  fill.position.set(-4.5, 1.5, -2);
   scene.add(fill);
 
-  const rim = new THREE.DirectionalLight(0xE8C547, 0.55);
-  rim.position.set(-3, 4, -6);
+  const rim = new THREE.DirectionalLight(0xFFD700, 0.55);
+  rim.position.set(-2.8, 3.8, -5);
   scene.add(rim);
 
   const bottom = new THREE.DirectionalLight(0x4A7AB0, 0.4);
-  bottom.position.set(0, -4, 2);
+  bottom.position.set(0, -3.5, 1.5);
   scene.add(bottom);
 
-  scene.add(new THREE.AmbientLight(0x0A1525, 0.25));
+  scene.add(new THREE.AmbientLight(0x0A1525, 0.28));
 
-  const canGroup = createCan();
+  const canGroup = new THREE.Group();
   scene.add(canGroup);
 
-  const iceShards = createIceShards(IS_MOBILE ? 28 : 55);
+  const loader = new GLTFLoader();
+  try {
+    const gltf = await loader.loadAsync('./models/baltika_grapefruit_can.glb');
+    const model = gltf.scene;
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    const targetHeight = 1.7;
+    const scale = targetHeight / size.y;
+    model.scale.setScalar(scale);
+
+    box.setFromObject(model);
+    box.getCenter(center);
+    model.position.sub(center);
+
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = false;
+        child.receiveShadow = false;
+        if (child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((m) => {
+            m.envMapIntensity = 1.4;
+            if (m.metalness !== undefined) m.metalness = Math.max(m.metalness || 0, 0.65);
+            if (m.roughness !== undefined) m.roughness = Math.min(m.roughness || 0.3, 0.35);
+            m.needsUpdate = true;
+          });
+        }
+      }
+    });
+
+    canGroup.add(model);
+    console.log('Baltika GLB loaded successfully');
+  } catch (err) {
+    console.error('Failed to load GLB, falling back', err);
+    canGroup.add(createFallbackCan());
+  }
+
+  const iceShards = createIceShards(IS_MOBILE ? 30 : 58);
   scene.add(iceShards);
 
-  const particles = createParticles(IS_MOBILE ? 180 : 420);
+  const particles = createParticles(IS_MOBILE ? 180 : 450);
   scene.add(particles);
 
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(20, 20),
+    new THREE.CircleGeometry(10, 64),
     new THREE.MeshPhysicalMaterial({
-      color: 0x050A12,
-      metalness: 0.8,
-      roughness: 0.25,
-      envMapIntensity: 0.6,
+      color: 0x040A14,
+      metalness: 0.85,
+      roughness: 0.22,
+      envMapIntensity: 0.65,
     })
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -1.6;
+  ground.position.y = -1.55;
   scene.add(ground);
 
   let composer = null;
@@ -122,28 +163,28 @@ function initExperience() {
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.35, 0.5, 0.82
+      0.32, 0.45, 0.82
     );
     composer.addPass(bloom);
   }
 
   const pathPoints = [
-    new THREE.Vector3(0.0, 2.6, 2.8),
-    new THREE.Vector3(1.1, 2.0, 1.6),
-    new THREE.Vector3(1.6, 1.1, 0.3),
-    new THREE.Vector3(0.9, 0.35, -0.9),
-    new THREE.Vector3(-0.2, -0.15, -1.8),
-    new THREE.Vector3(-0.9, -0.35, -2.6),
+    new THREE.Vector3(0.0, 1.45, 0.9),
+    new THREE.Vector3(0.6, 1.15, 0.2),
+    new THREE.Vector3(0.95, 0.75, -0.45),
+    new THREE.Vector3(0.45, 0.4, -1.05),
+    new THREE.Vector3(-0.3, 0.2, -1.55),
+    new THREE.Vector3(-0.65, 0.1, -2.05),
   ];
   const path = new THREE.CatmullRomCurve3(pathPoints);
   path.curveType = 'catmullrom';
-  path.tension = 0.28;
+  path.tension = 0.3;
 
   const getPathData = (t) => {
-    const clamped = THREE.MathUtils.clamp(t, 0, 1);
+    const c = THREE.MathUtils.clamp(t, 0, 1);
     return {
-      pos: path.getPointAt(clamped),
-      tangent: path.getTangentAt(clamped).normalize(),
+      pos: path.getPointAt(c),
+      tangent: path.getTangentAt(c).normalize(),
     };
   };
 
@@ -152,20 +193,20 @@ function initExperience() {
     trigger: '#scroll-content',
     start: 'top top',
     end: 'bottom bottom',
-    scrub: 0.65,
+    scrub: 0.6,
     onUpdate: (self) => {
       scrollProgress = self.progress;
-      const fillEl = document.getElementById('progress-fill');
-      if (fillEl) fillEl.style.width = (self.progress * 100) + '%';
-      if (self.progress > 0.035) {
+      const el = document.getElementById('progress-fill');
+      if (el) el.style.width = (self.progress * 100) + '%';
+      if (self.progress > 0.03) {
         const hint = document.getElementById('scroll-hint');
         if (hint) hint.classList.add('hidden');
       }
     },
   });
 
-  gsap.to('.hero-title', { opacity: 1, y: 0, duration: 1.5, ease: 'power3.out', delay: 0.25 });
-  gsap.to('.hero-subtitle', { opacity: 1, y: 0, duration: 1.3, ease: 'power3.out', delay: 0.55 });
+  gsap.to('.hero-title', { opacity: 1, y: 0, duration: 1.5, ease: 'power3.out', delay: 0.2 });
+  gsap.to('.hero-subtitle', { opacity: 1, y: 0, duration: 1.3, ease: 'power3.out', delay: 0.5 });
 
   gsap.utils.toArray('.section-title, .section-lead').forEach((el) => {
     gsap.to(el, {
@@ -176,14 +217,14 @@ function initExperience() {
 
   gsap.utils.toArray('.timeline-item').forEach((el, i) => {
     gsap.to(el, {
-      opacity: 1, x: 0, duration: 0.8, delay: i * 0.1, ease: 'power2.out',
+      opacity: 1, x: 0, duration: 0.8, delay: i * 0.09, ease: 'power2.out',
       scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' },
     });
   });
 
   gsap.utils.toArray('.process-step').forEach((el, i) => {
     gsap.to(el, {
-      opacity: 1, y: 0, duration: 0.7, delay: i * 0.08, ease: 'power2.out',
+      opacity: 1, y: 0, duration: 0.7, delay: i * 0.07, ease: 'power2.out',
       scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' },
     });
   });
@@ -199,35 +240,34 @@ function initExperience() {
   function animate() {
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
-    const smoothT = THREE.MathUtils.lerp(lastProgress, scrollProgress, 0.11);
+    const smoothT = THREE.MathUtils.lerp(lastProgress, scrollProgress, 0.1);
     lastProgress = smoothT;
 
-    const { pos, tangent } = getPathData(smoothT);
+    const { pos } = getPathData(smoothT);
     canGroup.position.copy(pos);
 
-    const look = pos.clone().add(tangent);
-    canGroup.lookAt(look);
-    canGroup.rotateX(Math.PI / 2);
-    canGroup.rotation.y += 0.012 + smoothT * 0.02;
+    canGroup.rotation.x = Math.sin(smoothT * Math.PI) * 0.1;
+    canGroup.rotation.z = Math.sin(smoothT * Math.PI * 0.7) * 0.07;
+    canGroup.rotation.y += 0.008 + smoothT * 0.01;
 
-    const orbit = smoothT * Math.PI * 1.2;
+    const orbit = smoothT * Math.PI * 0.85;
     const camOffset = new THREE.Vector3(
-      Math.sin(orbit) * 2.1,
-      1.55 - smoothT * 0.75,
-      3.6 - smoothT * 1.8
+      Math.sin(orbit) * 1.6,
+      1.2 - smoothT * 0.4,
+      3.3 - smoothT * 1.0
     );
-    camera.position.lerp(pos.clone().add(camOffset), 0.07);
-    camera.lookAt(pos.clone().add(new THREE.Vector3(0, 0.2, 0)));
+    camera.position.lerp(pos.clone().add(camOffset), 0.06);
+    camera.lookAt(pos.clone().add(new THREE.Vector3(0, 0.12, 0)));
 
     iceShards.children.forEach((shard, i) => {
-      shard.rotation.x += dt * (0.15 + (i % 5) * 0.04);
-      shard.rotation.y += dt * (0.12 + (i % 7) * 0.03);
+      shard.rotation.x += dt * (0.13 + (i % 5) * 0.035);
+      shard.rotation.y += dt * (0.1 + (i % 7) * 0.025);
       const base = shard.userData.baseY || 0;
-      shard.position.y = base + Math.sin(clock.elapsedTime * 0.6 + i) * 0.08;
+      shard.position.y = base + Math.sin(clock.elapsedTime * 0.55 + i * 0.65) * 0.085;
     });
-    iceShards.rotation.y += dt * 0.035;
+    iceShards.rotation.y += dt * 0.03;
 
-    particles.rotation.y += dt * 0.018;
+    particles.rotation.y += dt * 0.016;
 
     if (composer) composer.render();
     else renderer.render(scene, camera);
@@ -242,143 +282,61 @@ function initExperience() {
   });
 }
 
-function createCan() {
+function createFallbackCan() {
   const group = new THREE.Group();
-
-  const bodyGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.55, 64, 1, true);
-  const bodyMat = new THREE.MeshPhysicalMaterial({
-    color: 0x1A3A6E,
-    metalness: 0.92,
-    roughness: 0.18,
-    clearcoat: 0.7,
-    clearcoatRoughness: 0.15,
-    envMapIntensity: 1.4,
-    side: THREE.DoubleSide,
-  });
-  group.add(new THREE.Mesh(bodyGeo, bodyMat));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-
-  const grad = ctx.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, '#0F2A55');
-  grad.addColorStop(0.5, '#1E4A8C');
-  grad.addColorStop(1, '#0A1F3D');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 1024, 512);
-
-  ctx.fillStyle = '#C9A227';
-  ctx.fillRect(0, 40, 1024, 8);
-  ctx.fillRect(0, 464, 1024, 8);
-
-  ctx.fillStyle = '#F5F9FC';
-  ctx.font = 'bold 92px "Playfair Display", Georgia, serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('БАЛТИКА', 512, 230);
-
-  ctx.fillStyle = '#E8C547';
-  ctx.font = 'bold 140px "Playfair Display", Georgia, serif';
-  ctx.fillText('3', 512, 370);
-
-  ctx.fillStyle = 'rgba(184, 212, 232, 0.85)';
-  ctx.font = '28px Inter, sans-serif';
-  ctx.fillText('КЛАССИЧЕСКОЕ', 512, 420);
-
-  const labelTex = new THREE.CanvasTexture(canvas);
-  labelTex.colorSpace = THREE.SRGBColorSpace;
-  labelTex.anisotropy = 8;
-
-  const label = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.422, 0.422, 1.1, 64, 1, true),
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.42, 0.42, 1.6, 64, 1, true),
     new THREE.MeshPhysicalMaterial({
-      map: labelTex,
-      metalness: 0.3,
-      roughness: 0.4,
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.2,
+      color: 0xE8A890,
+      metalness: 0.6,
+      roughness: 0.25,
+      clearcoat: 0.7,
+      envMapIntensity: 1.3,
+      side: THREE.DoubleSide,
     })
   );
-  label.position.y = 0.05;
-  group.add(label);
-
-  const topMat = new THREE.MeshPhysicalMaterial({
-    color: 0xC0C8D0,
-    metalness: 0.95,
-    roughness: 0.12,
-    clearcoat: 0.8,
-  });
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 64), topMat);
-  top.position.y = 0.805;
-  group.add(top);
-
-  const bottom = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.05, 64), topMat);
-  bottom.position.y = -0.8;
-  group.add(bottom);
-
-  const dropGeo = new THREE.SphereGeometry(0.012, 8, 8);
-  const dropMat = new THREE.MeshPhysicalMaterial({
-    color: 0xD0E8F8,
-    metalness: 0.1,
-    roughness: 0.05,
-    transmission: 0.6,
-    thickness: 0.5,
-    transparent: true,
-    opacity: 0.7,
-  });
-  const drops = new THREE.InstancedMesh(dropGeo, dropMat, 40);
-  const dummy = new THREE.Object3D();
-  for (let i = 0; i < 40; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const y = (Math.random() - 0.5) * 1.3;
-    const r = 0.425 + Math.random() * 0.01;
-    dummy.position.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
-    dummy.scale.setScalar(0.6 + Math.random() * 0.8);
-    dummy.updateMatrix();
-    drops.setMatrixAt(i, dummy.matrix);
-  }
-  drops.instanceMatrix.needsUpdate = true;
-  group.add(drops);
-
-  group.rotation.y = Math.PI * 0.15;
+  group.add(body);
   return group;
 }
 
 function createIceShards(count) {
   const group = new THREE.Group();
   const geos = [
-    new THREE.IcosahedronGeometry(0.18, 0),
-    new THREE.OctahedronGeometry(0.16, 0),
-    new THREE.TetrahedronGeometry(0.2, 0),
-    new THREE.BoxGeometry(0.22, 0.14, 0.18),
+    new THREE.IcosahedronGeometry(0.19, 0),
+    new THREE.OctahedronGeometry(0.17, 0),
+    new THREE.TetrahedronGeometry(0.21, 0),
+    new THREE.BoxGeometry(0.23, 0.14, 0.19),
   ];
 
   const iceMat = new THREE.MeshPhysicalMaterial({
     color: 0xB8D8F0,
-    metalness: 0.05,
-    roughness: 0.08,
-    transmission: 0.82,
-    thickness: 1.4,
+    metalness: 0.04,
+    roughness: 0.07,
+    transmission: 0.84,
+    thickness: 1.5,
     ior: 1.31,
     transparent: true,
-    opacity: 0.78,
-    envMapIntensity: 1.8,
+    opacity: 0.75,
+    envMapIntensity: 1.9,
     side: THREE.DoubleSide,
   });
 
   for (let i = 0; i < count; i++) {
     const mesh = new THREE.Mesh(geos[i % geos.length].clone(), iceMat.clone());
-    const s = 0.5 + Math.random() * 1.4;
-    mesh.scale.set(s * (0.7 + Math.random() * 0.6), s, s * (0.7 + Math.random() * 0.6));
+    const s = 0.48 + Math.random() * 1.45;
+    mesh.scale.set(
+      s * (0.65 + Math.random() * 0.7),
+      s,
+      s * (0.65 + Math.random() * 0.7)
+    );
 
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = 1.4 + Math.random() * 2.8;
+    const r = 1.45 + Math.random() * 2.7;
     mesh.position.set(
       r * Math.sin(phi) * Math.cos(theta),
-      (Math.random() - 0.35) * 3.2,
-      r * Math.sin(phi) * Math.sin(theta) - 0.5
+      (Math.random() - 0.32) * 3.1,
+      r * Math.sin(phi) * Math.sin(theta) - 0.4
     );
     mesh.userData.baseY = mesh.position.y;
     mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
@@ -389,19 +347,19 @@ function createIceShards(count) {
 
 function createParticles(count) {
   const geo = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
+  const pos = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 8;
-    positions[i * 3 + 1] = (Math.random() - 0.5) * 6;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 8;
+    pos[i * 3] = (Math.random() - 0.5) * 10;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * 6.5;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 10;
   }
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
 
   const mat = new THREE.PointsMaterial({
-    color: 0xC8E0F0,
-    size: 0.035,
+    color: 0xC8E4F8,
+    size: 0.028,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.48,
     sizeAttenuation: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
