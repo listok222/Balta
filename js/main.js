@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -75,17 +74,17 @@ async function initExperience() {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = env;
-  scene.environmentIntensity = 1.35;
+  scene.environmentIntensity = 1.4;
 
   const key = new THREE.DirectionalLight(0xE0F0FF, 2.8);
   key.position.set(3.2, 7, 4.5);
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0x1E3A6A, 0.85);
+  const fill = new THREE.DirectionalLight(0x1E3A6A, 0.9);
   fill.position.set(-4.5, 1.5, -2);
   scene.add(fill);
 
-  const rim = new THREE.DirectionalLight(0xFFD700, 0.55);
+  const rim = new THREE.DirectionalLight(0xFFD700, 0.6);
   rim.position.set(-2.8, 3.8, -5);
   scene.add(rim);
 
@@ -93,50 +92,22 @@ async function initExperience() {
   bottom.position.set(0, -3.5, 1.5);
   scene.add(bottom);
 
-  scene.add(new THREE.AmbientLight(0x0A1525, 0.28));
+  scene.add(new THREE.AmbientLight(0x0A1525, 0.3));
 
-  const canGroup = new THREE.Group();
-  scene.add(canGroup);
-
-  const loader = new GLTFLoader();
+  const texLoader = new THREE.TextureLoader();
+  let labelTex = null;
   try {
-    const gltf = await loader.loadAsync('./models/baltika_grapefruit_can.glb');
-    const model = gltf.scene;
-
-    const box = new THREE.Box3().setFromObject(model);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-
-    const targetHeight = 1.7;
-    const scale = targetHeight / size.y;
-    model.scale.setScalar(scale);
-
-    box.setFromObject(model);
-    box.getCenter(center);
-    model.position.sub(center);
-
-    model.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = false;
-        child.receiveShadow = false;
-        if (child.material) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material];
-          mats.forEach((m) => {
-            m.envMapIntensity = 1.4;
-            if (m.metalness !== undefined) m.metalness = Math.max(m.metalness || 0, 0.65);
-            if (m.roughness !== undefined) m.roughness = Math.min(m.roughness || 0.3, 0.35);
-            m.needsUpdate = true;
-          });
-        }
-      }
-    });
-
-    canGroup.add(model);
-    console.log('Baltika GLB loaded successfully');
-  } catch (err) {
-    console.error('Failed to load GLB, falling back', err);
-    canGroup.add(createFallbackCan());
+    labelTex = await texLoader.loadAsync('./models/label.jpg');
+    labelTex.colorSpace = THREE.SRGBColorSpace;
+    labelTex.anisotropy = 16;
+    labelTex.wrapS = THREE.RepeatWrapping;
+    labelTex.wrapT = THREE.ClampToEdgeWrapping;
+  } catch (e) {
+    console.warn('Label texture failed', e);
   }
+
+  const canGroup = createCan(labelTex);
+  scene.add(canGroup);
 
   const iceShards = createIceShards(IS_MOBILE ? 30 : 58);
   scene.add(iceShards);
@@ -182,10 +153,7 @@ async function initExperience() {
 
   const getPathData = (t) => {
     const c = THREE.MathUtils.clamp(t, 0, 1);
-    return {
-      pos: path.getPointAt(c),
-      tangent: path.getTangentAt(c).normalize(),
-    };
+    return { pos: path.getPointAt(c) };
   };
 
   let scrollProgress = 0;
@@ -282,20 +250,86 @@ async function initExperience() {
   });
 }
 
-function createFallbackCan() {
+function createCan(labelTex) {
   const group = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.42, 0.42, 1.6, 64, 1, true),
-    new THREE.MeshPhysicalMaterial({
-      color: 0xE8A890,
-      metalness: 0.6,
-      roughness: 0.25,
-      clearcoat: 0.7,
-      envMapIntensity: 1.3,
-      side: THREE.DoubleSide,
-    })
+
+  const bodyGeo = new THREE.CylinderGeometry(0.46, 0.46, 1.68, 96, 1, true);
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    color: 0xE8A890,
+    metalness: 0.55,
+    roughness: 0.22,
+    clearcoat: 0.8,
+    clearcoatRoughness: 0.12,
+    envMapIntensity: 1.4,
+    side: THREE.DoubleSide,
+  });
+  group.add(new THREE.Mesh(bodyGeo, bodyMat));
+
+  const labelMat = new THREE.MeshPhysicalMaterial({
+    map: labelTex || null,
+    color: labelTex ? 0xffffff : 0xE8A890,
+    metalness: 0.12,
+    roughness: 0.35,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.18,
+  });
+  const label = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.463, 0.463, 1.25, 96, 1, true),
+    labelMat
   );
-  group.add(body);
+  label.position.y = 0.02;
+  group.add(label);
+
+  const goldMat = new THREE.MeshPhysicalMaterial({
+    color: 0xD4AF37,
+    metalness: 0.95,
+    roughness: 0.1,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.08,
+    envMapIntensity: 1.6,
+  });
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.055, 64), goldMat);
+  top.position.y = 0.87;
+  group.add(top);
+
+  const tab = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.018, 0.11),
+    new THREE.MeshPhysicalMaterial({ color: 0xC0C8D0, metalness: 0.9, roughness: 0.15 })
+  );
+  tab.position.set(0, 0.905, 0.11);
+  group.add(tab);
+
+  const bottom = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.45, 0.45, 0.05, 64),
+    new THREE.MeshPhysicalMaterial({ color: 0xB8C0C8, metalness: 0.9, roughness: 0.18 })
+  );
+  bottom.position.y = -0.865;
+  group.add(bottom);
+
+  const dropGeo = new THREE.SphereGeometry(0.011, 8, 8);
+  const dropMat = new THREE.MeshPhysicalMaterial({
+    color: 0xE8F4FC,
+    metalness: 0.02,
+    roughness: 0.03,
+    transmission: 0.75,
+    thickness: 0.35,
+    transparent: true,
+    opacity: 0.78,
+  });
+  const drops = new THREE.InstancedMesh(dropGeo, dropMat, 65);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < 65; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const y = (Math.random() - 0.5) * 1.4;
+    const r = 0.468 + Math.random() * 0.014;
+    dummy.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    dummy.scale.setScalar(0.5 + Math.random() * 1.2);
+    dummy.updateMatrix();
+    drops.setMatrixAt(i, dummy.matrix);
+  }
+  drops.instanceMatrix.needsUpdate = true;
+  group.add(drops);
+
   return group;
 }
 
